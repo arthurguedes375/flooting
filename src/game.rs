@@ -11,15 +11,19 @@ use crate::rectangle::{Rectangle, Size, RectangleSize};
 use crate::ui;
 use ui::Ui;
 
+
+pub type AsteroidRow = Vec<Asteroid>;
+pub type AsteroidRows = Vec<AsteroidRow>;
+
 pub struct ShootingInfo {
     pub last_shot_time: u128,
-    pub next_shots_count: u8,
-    pub shots_per_second: u16,
+    pub delay_to_next_shot: u128,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Asteroid {
     pub position: Position,
+    pub row: usize,
     pub size: u8,
     pub speed: u32,
 }
@@ -42,13 +46,25 @@ pub enum State {
     Closed,
 }
 
+pub struct DebugOptions {
+    pub generation_line: bool,
+    pub rows_starting_line: bool,
+}
+
+pub enum Debug {
+    Debugging,
+    Not,
+}
+
 pub struct Game {
     pub ui: Ui,
     pub spaceship: Spaceship,
-    pub asteroids: Vec<Asteroid>,
+    pub asteroids: AsteroidRows,
     pub missiles: Vec<Missile>,
-    pub shooting: ShootingInfo,
+    pub shooting_info: ShootingInfo,
     pub state: State,
+    pub debug_options: DebugOptions,
+    pub debug: Debug,
 }
 
 impl Game {
@@ -81,69 +97,44 @@ impl Game {
                 life: 10,
                 shooting: false,
             },
-            shooting: ShootingInfo {
+            shooting_info: ShootingInfo {
                 last_shot_time: time::now() - Game::nanoseconds_shot_delay(settings::SHOTS_PER_SECOND),
-                next_shots_count: 0,
-                shots_per_second: settings::SHOTS_PER_SECOND,
+                delay_to_next_shot: Game::nanoseconds_shot_delay(settings::SHOTS_PER_SECOND),
             },
             asteroids: Game::initialize_asteroids(),
             missiles: vec![],
             state: State::Running,
+            debug_options: DebugOptions {
+                generation_line: true,
+                rows_starting_line: true,
+            },
+            debug: if settings::DEBUG { Debug::Debugging } else { Debug::Not },
         };
+    }
+
+    fn map_asteroids(mut asteroids: AsteroidRows, f: fn (row: AsteroidRow) -> Vec<Asteroid>) -> AsteroidRows {
+        for (i, row) in asteroids.clone().iter().cloned().enumerate() {
+            asteroids[i] = f(row);
+        }
+
+        return asteroids;
+    }
+
+    pub fn get_row_y_position(row: usize) -> u32 {
+        let margin = row * settings::ASTEROIDS_ROWS_MARGIN as usize;
+        let y_position = settings::ASTEROIDS_MARGIN.y as usize + margin + (settings::ASTEROIDS_ROWS_HEIGHT as usize * row);
+        return y_position.try_into().expect("Failed to get the row's y position.");
     }
 
     fn nanoseconds_shot_delay(shots_per_second: u16) -> u128 {
         return shots_per_second as u128 / 1_000_000_000;
     }
 
-    fn find_furthest_asteroid_position(asteroids: Vec<Asteroid>) -> Position {
-        let mut furthest_position: Position = Position {
-            x: -1,
-            y: -1
-        };
-
-        for asteroid in asteroids.iter() {
-            if asteroid.position.x > furthest_position.x {
-                furthest_position = asteroid.position;
-            }
-        }
-
-        return furthest_position;
-    }
-
-    fn find_asteroids_within_x_range(asteroids: Vec<Asteroid>, min_x: u32, max_x: u32) -> Vec<Position> {
-        let mut asteroids_positions: Vec<Position> = vec![];
-        let size = RectangleSize {
-            width: max_x - min_x,
-            height: settings::WINDOW_HEIGHT,
-        };
-
-        let outside_rectangle = Rectangle {
-            position: Position {
-                y: settings::WINDOW_HEIGHT as i32 / 2,
-                x: min_x as i32 + size.width as i32 / 2,
-            },
-            size: Size::Rectangle(size),
-        };
-
-        for asteroid in asteroids.iter() {
-            let inside_rectangle = Rectangle {
-                size: Size::Square(Ui::to_pixels(asteroid.size as u32)),
-                position: asteroid.position,
-            };
-            
-            if inside_rectangle.over(outside_rectangle.clone()) {
-                asteroids_positions.push(asteroid.position);
-            }
-        }
-
-        return asteroids_positions;
-    }
-
     fn generate_asteroid(
         rng: &mut rand::prelude::ThreadRng,
-        existing_asteroids: Vec<Asteroid>
+        existing_asteroids: AsteroidRows
     ) -> Asteroid {
+        let row = rng.gen_range(0..settings::ASTEROIDS_ROWS);
         let mut asteroid_position;
         let mut size;
         'generation_loop: loop {
@@ -159,11 +150,7 @@ impl Game {
                     ..
                     minimum_x_position + settings::ASTEROIDS_MARGIN.x
                 ),
-                y: rng.gen_range(
-                    settings::ASTEROIDS_MARGIN.y
-                    ..
-                    (settings::WINDOW_HEIGHT - settings::SPACESHIP_HEIGHT / 2) as i32
-                ),
+                y: Game::get_row_y_position(row) as i32,
             };
 
             if settings::ALLOW_INSIDE_GENERATION {
@@ -171,21 +158,23 @@ impl Game {
             }
     
             let mut inside = false;
-            for existing_asteroid in existing_asteroids.iter() {
-                let outside_rectangle = Rectangle {
-                    position: existing_asteroid.position,
-                    size: Size::Square(
-                        Ui::to_pixels(existing_asteroid.size as u32)
-                    ),
-                };
-                let inside_rectangle = Rectangle {
-                    position: asteroid_position,
-                    size: Size::Square(Ui::to_pixels(size as u32)),
-                };
-    
-                if inside_rectangle.over(outside_rectangle) {
-                    inside = true;
-                    break; 
+            for row in existing_asteroids.iter() {
+                for existing_asteroid in row.iter() {
+                    let outside_rectangle = Rectangle {
+                        position: existing_asteroid.position,
+                        size: Size::Square(
+                            Ui::to_pixels(existing_asteroid.size as u32)
+                        ),
+                    };
+                    let inside_rectangle = Rectangle {
+                        position: asteroid_position,
+                        size: Size::Square(Ui::to_pixels(size as u32)),
+                    };
+        
+                    if inside_rectangle.over(outside_rectangle) {
+                        inside = true;
+                        break; 
+                    }
                 }
             }
             if !inside {
@@ -196,6 +185,7 @@ impl Game {
         let generated_asteroid = Asteroid {
             position: asteroid_position,
             size,
+            row,
             speed: rng.gen_range(
                 settings::MIN_ASTEROIDS_SPEED..settings::MAX_ASTEROIDS_SPEED
             )
@@ -204,13 +194,14 @@ impl Game {
         return generated_asteroid;
     }
 
-    fn initialize_asteroids() -> Vec<Asteroid> {
-        let mut asteroids = vec![];
+    fn initialize_asteroids() -> AsteroidRows {
+        let mut asteroids = vec![vec![]; settings::ASTEROIDS_ROWS];
         let mut rng = rand::thread_rng();
-
-        for _ in 0..rng.gen_range(settings::MIN_GENERATED_ASTEROIDS..settings::MAX_GENERATED_ASTEROIDS) {
-            let generated_asteroid = Game::generate_asteroid(&mut rng, vec![]);
-            asteroids.push(generated_asteroid);
+        for row_i in 0..settings::ASTEROIDS_ROWS {
+            for _ in 0..rng.gen_range(settings::MIN_GENERATED_ASTEROIDS..settings::MAX_GENERATED_ASTEROIDS) {
+                let generated_asteroid = Game::generate_asteroid(&mut rng, vec![vec![]; settings::ASTEROIDS_ROWS]);
+                asteroids[row_i].push(generated_asteroid);
+            }
         }
 
         return asteroids;
@@ -246,30 +237,31 @@ impl Game {
     fn asteroids_generation(&mut self) {
         let mut appearing_asteroids = 0;
 
-        for asteroid in self.asteroids.iter() {
-            let corners = Rectangle {
-                position: asteroid.position,
-                size: Size::Square(Ui::to_pixels(asteroid.size as u32)),
-            }.get_corners();
-
-            if (corners.top_left.x as i64) < settings::WINDOW_WIDTH as i64
-            && corners.top_left.x as i64 > settings::WINDOW_WIDTH as i64 - settings::GENERATE_NEW_ASTEROID_AFTER as i64 {
-                let next_position = Game::next_position(
-                    asteroid.position,
-                    asteroid.speed,
-                    Position {
-                        x: -1,
-                        y: 0,
-                    },
-                );
+        for row in self.asteroids.iter() {
+            for asteroid in row.iter() {
                 let corners = Rectangle {
-                    position: next_position,
+                    position: asteroid.position,
                     size: Size::Square(Ui::to_pixels(asteroid.size as u32)),
                 }.get_corners();
-                
-                if corners.top_left.x as i64 <= settings::WINDOW_WIDTH as i64 - settings::GENERATE_NEW_ASTEROID_AFTER as i64 {
-                    println!("Generating asteroid");
-                    appearing_asteroids += 1;
+
+                if (corners.top_left.x as i64) < settings::WINDOW_WIDTH as i64
+                && corners.top_left.x as i64 > settings::WINDOW_WIDTH as i64 - settings::GENERATE_NEW_ASTEROID_AFTER as i64 {
+                    let next_position = Game::next_position(
+                        asteroid.position,
+                        asteroid.speed,
+                        Position {
+                            x: -1,
+                            y: 0,
+                        },
+                    );
+                    let corners = Rectangle {
+                        position: next_position,
+                        size: Size::Square(Ui::to_pixels(asteroid.size as u32)),
+                    }.get_corners();
+                    
+                    if corners.top_left.x as i64 <= settings::WINDOW_WIDTH as i64 - settings::GENERATE_NEW_ASTEROID_AFTER as i64 {
+                        appearing_asteroids += 1;
+                    }
                 }
             }
         }
@@ -277,28 +269,32 @@ impl Game {
         let mut rng = rand::thread_rng();
         for _ in 0..appearing_asteroids {
             let generated_asteroid = Game::generate_asteroid(&mut rng, self.asteroids.clone());
-            self.asteroids.push(generated_asteroid);
+            self.asteroids[generated_asteroid.row].push(generated_asteroid);
         }
     }
 
     fn update_asteroids_positions(&mut self) {
-        self.asteroids = self.asteroids.iter().map(|asteroid| {
-            Asteroid {
-                position: Game::next_position(
-                    asteroid.position,
-                    asteroid.speed,
-                    Position {
-                        x: -1,
-                        y: 0,
-                    }
-                ),
-                ..*asteroid
-            }
-        }).collect();
+        self.asteroids = Game::map_asteroids(self.asteroids.clone(), |row| {
+            row.iter().map(|asteroid| {
+                Asteroid {
+                    position: Game::next_position(
+                        asteroid.position,
+                        asteroid.speed,
+                        Position {
+                            x: -1,
+                            y: 0,
+                        }
+                    ),
+                    ..*asteroid
+                }
+            }).collect()
+        });
     }
 
     fn clear_asteroids(&mut self) {
-        self.asteroids = self.asteroids.iter().cloned().filter(|asteroid| asteroid.position.x > 0).collect();
+        self.asteroids = Game::map_asteroids(self.asteroids.clone(), |row| {
+            row.iter().cloned().filter(|asteroid| asteroid.position.x > 0).collect()
+        });
     }
 
     fn update(&mut self) {
@@ -318,14 +314,12 @@ impl Game {
                     ..
                 } => {
                     self.spaceship.shooting = true;
-                    println!("Shooting");
                 }
                 Event::MouseButtonUp {
                     mouse_btn: MouseButton::Left,
                     ..
                 } => {
                     self.spaceship.shooting = false;
-                    println!("Stopped Shooting");
                 }
 
                 Event::KeyDown {
@@ -337,6 +331,34 @@ impl Game {
                         State::Paused => self.state = State::Running,
 
                         _ => {}
+                    }
+                }
+
+                Event::KeyDown {
+                    keycode: Some(Keycode::F5),
+                    ..
+                } => {
+                    match self.debug {
+                        Debug::Not => self.debug = Debug::Debugging,
+                        Debug::Debugging => self.debug = Debug::Not,
+                    }
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::F6),
+                    ..
+                } => {
+                    self.debug_options = DebugOptions {
+                        generation_line: !self.debug_options.generation_line,
+                        ..self.debug_options
+                    }
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::F7),
+                    ..
+                } => {
+                    self.debug_options = DebugOptions {
+                        rows_starting_line: !self.debug_options.rows_starting_line,
+                        ..self.debug_options
                     }
                 }
 

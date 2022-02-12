@@ -69,7 +69,6 @@ impl Rectangle {
     }
 
     pub fn contains_position(&self, position: Position) -> bool {
-        let rectangle_size = Rectangle::to_rectangle_size(self.size.clone());
         let corners = self.get_corners();
 
         if position.x > corners.top_left.x
