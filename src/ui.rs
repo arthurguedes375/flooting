@@ -4,6 +4,7 @@ use sdl2::render::Canvas;
 
 use sdl2::rect::Rect;
 
+use crate::helper::Position;
 use crate::settings;
 use crate::rectangle::{Rectangle, Size, RectangleSize};
 use crate::game;
@@ -43,7 +44,7 @@ impl Ui {
             }
         };
 
-        game.ui.canvas.set_draw_color(sdl2::pixels::Color::RGB(20, 6, 0));
+        game.ui.canvas.set_draw_color(settings::ASTEROIDS_COLOR);
         game.ui.canvas.fill_rects(&asteroids_rects).unwrap();
     }
 
@@ -86,6 +87,29 @@ impl Ui {
         game.ui.canvas.fill_rects(&rects).unwrap();
     }
 
+    pub fn draw_spaceship_life(game: &mut Game) {
+        let size = RectangleSize{ 
+            width: 7 * (game.spaceship.life as u32 / 10),
+            height: 20,
+        };
+
+        let life_rectangle = Rectangle {
+            position: Position {
+                x: (settings::WINDOW_WIDTH - size.width - 30) as i32,
+                y: 40
+            },
+            size: Size::Rectangle(size)
+        }.get_corners();
+
+        game.ui.canvas.set_draw_color(settings::LIFE_COLOR);
+        game.ui.canvas.fill_rect(Rect::new(
+            life_rectangle.top_left.x,
+            life_rectangle.top_left.y,
+            size.width,
+            size.height,
+        )).unwrap();
+    }
+
     pub fn draw(game: &mut Game) {
         game.ui.canvas.set_draw_color(settings::WINDOW_BACKGROUND);
         game.ui.canvas.clear();
@@ -100,6 +124,7 @@ impl Ui {
         Ui::draw_spaceship(game);
         Ui::draw_missiles(game);
         Ui::draw_asteroids(game);
+        Ui::draw_spaceship_life(game);
 
         game.ui.canvas.present();
     }
@@ -136,7 +161,7 @@ impl Ui {
         }
 
         if game.debug_options.object_count {
-            let mut missiles = game.missiles.len();
+            let missiles = game.missiles.len();
             let mut asteroids = 0;
             for row in game.asteroids.iter() {
                 asteroids += row.len();

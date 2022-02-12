@@ -44,6 +44,8 @@ pub enum State {
     Running,
     Paused,
     Closed,
+    Died,
+    Won,
 }
 
 pub struct DebugOptions {
@@ -95,7 +97,7 @@ impl Game {
                     x: settings::INITIAL_SPACESHIP_POSITION.x,
                     y: settings::INITIAL_SPACESHIP_POSITION.y,
                 },
-                life: 10,
+                life: settings::SPACESHIP_LIFE,
                 shooting: false,
             },
             shooting_info: ShootingInfo {
@@ -300,8 +302,26 @@ impl Game {
 
     fn clear_asteroids(&mut self) {
         self.asteroids = Game::map_asteroids(self.asteroids.clone(), |row| {
-            row.iter().cloned().filter(|asteroid| asteroid.position.x > 0 || asteroid.size == 0).collect()
+            row.iter().cloned().filter(|asteroid| asteroid.position.x > 0 && asteroid.size > 0).collect()
         });
+    }
+
+    fn check_spaceship_crash(&mut self) {
+        for row in self.asteroids.iter() {
+            for asteroid in row.iter() {
+                let new_spaceship_life = self.spaceship.life as i16 - asteroid.size as i16;
+                let next_pos = Game::next_position(asteroid.position, asteroid.speed, Position {
+                    x: -1,
+                    y: 0,
+                });
+
+                if next_pos.x < self.spaceship.position.x && asteroid.position.x > self.spaceship.position.x && new_spaceship_life > 0 {
+                    self.spaceship.life -= asteroid.size;
+                }else if new_spaceship_life < 0 {
+                    self.state = State::Died;
+                }
+            }
+        }
     }
 
     fn shot(&mut self) {
@@ -375,7 +395,20 @@ impl Game {
         }
     }
 
+    fn check_win(&mut self) {
+        let mut asteroid_count = 0;
+
+        for row in self.asteroids.iter() {
+            asteroid_count += row.len();
+        }
+        if asteroid_count == 0 {
+            self.state = State::Won;
+        }
+    }
+
     fn update(&mut self) {
+        self.check_win();
+        self.check_spaceship_crash();
         self.missiles = Game::sort_missiles(self.missiles.clone());
         self.shot();
         self.check_missile_collision();
@@ -386,7 +419,7 @@ impl Game {
     }
 
     fn get_inputs(&mut self) {
-        self.spaceship.position.y = self.ui.event_pump.mouse_state().y();
+        self.spaceship.position.y = self.ui.event_pump.mouse_state().y() - settings::SPACESHIP_HEIGHT as i32 / 2;
 
         for event in self.ui.event_pump.poll_iter() {
             match event {
@@ -488,6 +521,14 @@ impl Game {
             match self.state {
                 State::Running | State::Paused => {
                     self.run();
+                }
+                State::Died => {
+                    println!("You died :/");
+                    break 'main_loop;
+                }
+                State::Won => {
+                    println!("You won, you can adjust the settings to be harder!");
+                    break 'main_loop;
                 }
                 State::Closed => {
                     break 'main_loop;
