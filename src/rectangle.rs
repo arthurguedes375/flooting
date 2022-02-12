@@ -7,19 +7,19 @@ pub struct RectangleCornersPositions {
     pub bottom_right: Position,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RectangleSize {
     pub height: u32,
     pub width: u32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Size {
     Square(u32),
     Rectangle(RectangleSize),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Rectangle {
     pub position: Position,
     pub size: Size,

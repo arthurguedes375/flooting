@@ -5,7 +5,7 @@ use sdl2::render::Canvas;
 use sdl2::rect::Rect;
 
 use crate::settings;
-use crate::rectangle::{Rectangle, Size};
+use crate::rectangle::{Rectangle, Size, RectangleSize};
 use crate::game;
 
 use game::{Game, Debug};
@@ -61,8 +61,50 @@ impl Ui {
         )).unwrap();
     }
 
-    pub fn debug(game: &mut Game) {
+    pub fn draw_missiles(game: &mut Game) {
+        let mut rects: Vec<Rect> = vec![];
+        for missile in game.missiles.iter() {
+            if missile.position.x > settings::WINDOW_WIDTH as i32 || !missile.active { continue; }
+            let rect = Rectangle {
+                position: missile.position,
+                size: Size::Rectangle(RectangleSize {
+                    width: settings::MISSILE_WIDTH,
+                    height: settings::MISSILE_HEIGHT,
+                }),
+            };
+            let corners = rect.get_corners();
 
+            rects.push(Rect::new(
+                corners.top_left.x,
+                corners.top_left.y,
+                settings::MISSILE_WIDTH,
+                settings::MISSILE_HEIGHT,
+            ));
+        }
+
+        game.ui.canvas.set_draw_color(settings::MISSILE_COLOR);
+        game.ui.canvas.fill_rects(&rects).unwrap();
+    }
+
+    pub fn draw(game: &mut Game) {
+        game.ui.canvas.set_draw_color(settings::WINDOW_BACKGROUND);
+        game.ui.canvas.clear();
+
+        match game.debug {
+            Debug::Debugging => {
+                Ui::debug(game);
+            }
+            _ => {}
+        }
+
+        Ui::draw_spaceship(game);
+        Ui::draw_missiles(game);
+        Ui::draw_asteroids(game);
+
+        game.ui.canvas.present();
+    }
+
+    pub fn debug(game: &mut Game) {
         if game.debug_options.generation_line {
             // Draw Generation Line
             game.ui.canvas.set_draw_color(settings::DEBUG_COLOR);
@@ -93,23 +135,15 @@ impl Ui {
             game.ui.canvas.fill_rects(&rects).unwrap();
         }
 
-
-    }
-
-    pub fn draw(game: &mut Game) {
-        game.ui.canvas.set_draw_color(settings::WINDOW_BACKGROUND);
-        game.ui.canvas.clear();
-
-        match game.debug {
-            Debug::Debugging => {
-                Ui::debug(game);
+        if game.debug_options.object_count {
+            let mut missiles = game.missiles.len();
+            let mut asteroids = 0;
+            for row in game.asteroids.iter() {
+                asteroids += row.len();
             }
-            _ => {}
+
+            println!("Missiles count: {}", missiles);
+            println!("Asteroids count: {}", asteroids);
         }
-
-        Ui::draw_spaceship(game);
-        Ui::draw_asteroids(game);
-
-        game.ui.canvas.present();
     }
 }
