@@ -7,7 +7,7 @@ use rand::Rng;
 use crate::time;
 use crate::settings;
 use crate::helper::{Position};
-use crate::rectangle::{Rectangle, Size, RectangleSize};
+use crate::rectangle::{Rectangle, Size};
 use crate::ui;
 use ui::Ui;
 
