@@ -54,7 +54,7 @@ pub enum State {
 #[derive(Clone)]
 pub struct DebugOptions {
     pub generation_line: bool,
-    pub rows_starting_line: bool,
+    pub rows: bool,
     pub object_count: bool,
 }
 
@@ -106,14 +106,13 @@ impl Game {
         return asteroids;
     }
 
-    pub fn get_row_y_position(row: usize) -> u32 {
-        let margin = row * settings::ASTEROIDS_ROWS_MARGIN as usize;
-        let y_position = settings::ASTEROIDS_MARGIN.y as usize + margin + (settings::ASTEROIDS_ROWS_HEIGHT as usize * row);
-        return y_position.try_into().expect("Failed to get the row's y position.");
+    pub fn get_centered_row_y_position(row: usize) -> u32 {
+        let y_position = (settings::ASTEROIDS_ROWS_HEIGHT as u32 * row as u32) + settings::ASTEROIDS_ROWS_HEIGHT as u32 / 2;
+        return y_position;
     }
 
-    fn get_row_by_y_position(y_position: i32) -> usize {
-        return ((y_position as i64 / settings::ASTEROIDS_ROWS_HEIGHT as i64) % settings::ASTEROIDS_ROWS as i64) as usize; 
+    pub fn get_row_by_y_position(y_position: i32) -> usize {
+        return (y_position as i64 / settings::ASTEROIDS_ROWS_HEIGHT as i64) as usize; 
     }
 
     fn nanoseconds_shot_delay(shots_per_second: u16) -> u128 {
@@ -141,7 +140,7 @@ impl Game {
                     ..
                     minimum_x_position + settings::ASTEROIDS_MARGIN.x
                 ),
-                y: Game::get_row_y_position(row) as i32,
+                y: Game::get_centered_row_y_position(row) as i32,
             };
 
             if settings::ALLOW_INSIDE_GENERATION {
@@ -232,10 +231,10 @@ impl Game {
         return next_pos;
     }
 
-    fn asteroids_generation(&mut self) {
+    pub fn appearing_asteroids(asteroids: AsteroidRows) -> i32 {
         let mut appearing_asteroids = 0;
 
-        for row in self.asteroids.iter() {
+        for row in asteroids.iter() {
             for asteroid in row.iter() {
                 let corners = Rectangle {
                     position: asteroid.position,
@@ -263,6 +262,12 @@ impl Game {
                 }
             }
         }
+
+        return appearing_asteroids;
+    }
+
+    fn asteroids_generation(&mut self) {
+        let appearing_asteroids = Game::appearing_asteroids(self.asteroids.clone());
 
         let mut rng = rand::thread_rng();
         for _ in 0..appearing_asteroids {
@@ -374,6 +379,10 @@ impl Game {
                     height: settings::MISSILE_HEIGHT,
                 }),
             };
+            if missiles_row >= self.asteroids.len() {
+                continue;
+            }
+            
             for (asteroid_i, _) in self.asteroids[missiles_row].clone().iter().enumerate() {
                 let asteroid = &mut self.asteroids[missiles_row][asteroid_i];
 
@@ -484,7 +493,7 @@ impl Game {
                             ..
                         } => {
                             self.debug_options = DebugOptions {
-                                rows_starting_line: !self.debug_options.rows_starting_line,
+                                rows: !self.debug_options.rows,
                                 ..self.debug_options
                             }
                         }

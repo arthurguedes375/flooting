@@ -9,7 +9,8 @@ use crate::rectangle::{Rectangle, Size, RectangleSize};
 // Window
 pub const WINDOW_TITLE: &str = "Flooting";
 pub const WINDOW_WIDTH: u32 = 1200;
-pub const WINDOW_HEIGHT: u32 = 600;
+// pub const WINDOW_HEIGHT: u32 = 600;
+pub const WINDOW_HEIGHT: u32 = 845;
 pub const WINDOW_BACKGROUND: Color = Color::RGB(0, 2, 46);
 pub const FPS: u32 = 60;
 
@@ -56,7 +57,7 @@ pub const DEBUG: bool = false;
 pub const DEBUG_COLOR: Color = Color::MAGENTA;
 pub const DEFAULT_DEBUG_OPTIONS: DebugOptions = DebugOptions {
     generation_line: true,
-    rows_starting_line: true,
+    rows: true,
     object_count: true,
 };
 
@@ -89,24 +90,17 @@ pub const MIN_ASTEROIDS_SPEED: u32 = 2;
 pub const MAX_ASTEROIDS_SPEED: u32 = 3;
 pub const MIN_ASTEROIDS_SIZE: u8 = 2;
 pub const MAX_ASTEROIDS_SIZE: u8 = 3;
-pub const ASTEROIDS_ROWS_HEIGHT: u32 = 
-    (WINDOW_HEIGHT as u32 / ASTEROIDS_ROWS as u32)
-    - (ASTEROIDS_ROWS as u32 * ASTEROIDS_ROWS_MARGIN as u32)
-    + ASTEROIDS_ROWS_PADDING;
-pub const ASTEROIDS_ROWS_MARGIN: u32 = 5;
+pub const ASTEROIDS_ROWS_HEIGHT: u32 = WINDOW_HEIGHT as u32 / ASTEROIDS_ROWS as u32;
+
 pub const ASTEROIDS_ROWS_PADDING: u32 = 25;
 pub const ASTEROIDS_ROWS: usize = (
     WINDOW_HEIGHT /
     (
         MAX_ASTEROIDS_SIZE as u32 * PIXELS_MULTIPLIER_FACTOR
         + ASTEROIDS_ROWS_PADDING
-        + ASTEROIDS_ROWS_MARGIN
     )
 ) as usize;
 pub const ASTEROIDS_MARGIN: Position = Position {
     x: 100,
-    y: (
-        WINDOW_HEIGHT as usize - 
-        (ASTEROIDS_ROWS * ASTEROIDS_ROWS_HEIGHT as usize)
-    ) as i32 / 2,
+    y: 0,
 };

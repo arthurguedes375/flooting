@@ -320,7 +320,12 @@ impl Ui {
 
         if game.debug_options.generation_line {
             // Draw Generation Line
-            canvas.set_draw_color(settings::DEBUG_COLOR);
+            if Game::appearing_asteroids(game.asteroids.clone()) > 0 {
+                canvas.set_draw_color(Color::CYAN);
+            } else {
+                canvas.set_draw_color(settings::DEBUG_COLOR);
+            }
+            
             canvas.fill_rect(
                 Rect::new(
                     settings::WINDOW_WIDTH as i32
@@ -332,20 +337,43 @@ impl Ui {
             ).unwrap();
         }
 
-        if game.debug_options.rows_starting_line {
+        if game.debug_options.rows {
             let mut rects: Vec<Rect> = vec![];
+            let mut rects_with_missiles: Vec<Rect> = vec![];
+            let mut rows_with_missiles: Vec<usize> = vec![];
+
+            for missile in game.missiles.iter() {
+                let missiles_row = Game::get_row_by_y_position(missile.position.y);
+                rows_with_missiles.push(missiles_row);
+            }
+
             for row in 0..game.asteroids.len() {
-                let y_position = Game::get_row_y_position(row);
-                rects.push(Rect::new(
+                let y_position = Game::get_centered_row_y_position(row);
+                let row_rect = Rect::new(
                     0,
-                    y_position as i32,
+                    y_position as i32 - settings::ASTEROIDS_ROWS_HEIGHT as i32 / 2,
                     settings::WINDOW_WIDTH,
-                    1
-                ));
+                    settings::ASTEROIDS_ROWS_HEIGHT - 2
+                );
+
+                let mut contains_missiles = false;
+                for &row_with_missile in rows_with_missiles.iter() {
+                    if row == row_with_missile {
+                        contains_missiles = true;
+                    }
+                }
+
+                if !contains_missiles {
+                    rects.push(row_rect);
+                } else {
+                    rects_with_missiles.push(row_rect);
+                }
             }
 
             canvas.set_draw_color(settings::DEBUG_COLOR);
-            canvas.fill_rects(&rects).unwrap();
+            canvas.draw_rects(&rects).unwrap();
+            canvas.set_draw_color(settings::MISSILE_COLOR);
+            canvas.draw_rects(&rects_with_missiles).unwrap();
         }
 
         if game.debug_options.object_count {
