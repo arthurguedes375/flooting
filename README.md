@@ -1,5 +1,4 @@
 # Flooting
 
 ## Setup
-First you need to install sdl2 on your system.
-To do that with `apt` you can run `sudo apt install "libsdl2*-dev"`
+First you need to install vcpkg with cargo, to do that run: `cargo install cargo-vcpkg`
