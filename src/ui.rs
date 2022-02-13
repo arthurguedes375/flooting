@@ -343,6 +343,8 @@ impl Ui {
             let mut rows_with_missiles: Vec<usize> = vec![];
 
             for missile in game.missiles.iter() {
+                if !missile.active { continue; }
+
                 let missiles_row = Game::get_row_by_y_position(missile.position.y);
                 rows_with_missiles.push(missiles_row);
             }
