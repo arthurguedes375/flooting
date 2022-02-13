@@ -6,15 +6,16 @@ use rand::Rng;
 
 use crate::time;
 use crate::settings;
-use crate::helper::{Position};
+use crate::helper::{Position, G2UMessage, U2GMessage};
 use crate::rectangle::{Rectangle, Size, RectangleSize};
-use crate::ui;
-use ui::Ui;
+use crate::ui::Ui;
 
+use std::sync::mpsc::{Sender, Receiver};
 
 pub type AsteroidRow = Vec<Asteroid>;
 pub type AsteroidRows = Vec<AsteroidRow>;
 
+#[derive(Clone)]
 pub struct ShootingInfo {
     pub last_shot_time: u128,
     pub delay_to_next_shot: u128,
@@ -34,33 +35,37 @@ pub struct Missile {
     pub active: bool,
 }
 
+#[derive(Clone)]
 pub struct Spaceship {
     pub position: Position,
     pub life: u8,
     pub shooting: bool,
 }
 
+#[derive(Clone)]
 pub enum State {
     Running,
     Paused,
     Closed,
     Died,
-    Won,
+    NextGen(u128),
 }
 
+#[derive(Clone)]
 pub struct DebugOptions {
     pub generation_line: bool,
     pub rows_starting_line: bool,
     pub object_count: bool,
 }
 
+#[derive(Clone)]
 pub enum Debug {
     Debugging,
     Not,
 }
 
+#[derive(Clone)]
 pub struct Game {
-    pub ui: Ui,
     pub spaceship: Spaceship,
     pub asteroids: AsteroidRows,
     pub missiles: Vec<Missile>,
@@ -71,27 +76,8 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new(ui_settings: ui::UiSettings) -> Game {
-        let sdl_context = sdl2::init().unwrap();
-        let video_subsystem = sdl_context.video().unwrap();
-
-        let window = video_subsystem
-            .window(&ui_settings.title, ui_settings.width, ui_settings.height)
-            .position_centered()
-            .build()
-            .unwrap();
-
-        let canvas = window.into_canvas().build().unwrap();
-
-        let event_pump = sdl_context.event_pump().unwrap();
-
+    pub fn new() -> Game {
         return Game {
-            ui: Ui {
-                sdl_context,
-                video_subsystem,
-                canvas,
-                event_pump,
-            },
             spaceship: Spaceship {
                 position: Position {
                     x: settings::INITIAL_SPACESHIP_POSITION.x,
@@ -107,11 +93,7 @@ impl Game {
             asteroids: Game::initialize_asteroids(),
             missiles: vec![],
             state: State::Running,
-            debug_options: DebugOptions {
-                generation_line: true,
-                rows_starting_line: true,
-                object_count: false,
-            },
+            debug_options: settings::DEFAULT_DEBUG_OPTIONS,
             debug: if settings::DEBUG { Debug::Debugging } else { Debug::Not },
         };
     }
@@ -207,7 +189,14 @@ impl Game {
         let mut asteroids = vec![vec![]; settings::ASTEROIDS_ROWS];
         let mut rng = rand::thread_rng();
         for row_i in 0..settings::ASTEROIDS_ROWS {
-            for _ in 0..rng.gen_range(settings::MIN_GENERATED_ASTEROIDS..settings::MAX_GENERATED_ASTEROIDS) {
+            let range;
+            if settings::MIN_GENERATED_ASTEROIDS >= settings::MAX_GENERATED_ASTEROIDS {
+                range = 1;
+            } else {
+                range = rng.gen_range(settings::MIN_GENERATED_ASTEROIDS..settings::MAX_GENERATED_ASTEROIDS);
+            }
+
+            for _ in 0..range {
                 let generated_asteroid = Game::generate_asteroid(&mut rng, vec![vec![]; settings::ASTEROIDS_ROWS], Some(row_i));
                 asteroids[row_i].push(generated_asteroid);
             }
@@ -316,8 +305,12 @@ impl Game {
                 });
 
                 if next_pos.x < self.spaceship.position.x && asteroid.position.x > self.spaceship.position.x && new_spaceship_life > 0 {
-                    self.spaceship.life -= asteroid.size;
-                }else if new_spaceship_life < 0 {
+                    if self.spaceship.life as i32 - (asteroid.size as i32) < 0 {
+                        self.spaceship.life = 0;
+                    } else {
+                        self.spaceship.life -= asteroid.size;
+                    }
+                }else if new_spaceship_life == 0 {
                     self.state = State::Died;
                 }
             }
@@ -329,8 +322,8 @@ impl Game {
             let missile = Missile {
                 active: true,
                 position: Position {
-                    x: self.spaceship.position.x + settings::SPACESHIP_WIDTH as i32,
-                    y: self.spaceship.position.y + settings::SPACESHIP_HEIGHT as i32/ 2,
+                    x: self.spaceship.position.x + settings::SPACESHIP_WIDTH as i32 / 2,
+                    y: self.spaceship.position.y + settings::SPACESHIP_HEIGHT as i32 / 2,
                 }
             };
             
@@ -370,6 +363,9 @@ impl Game {
     fn check_missile_collision(&mut self) {
         for (missile_i, _) in self.missiles.clone().iter().enumerate() {
             let missile = &mut self.missiles[missile_i];
+
+            if !missile.active { continue; }
+
             let missiles_row = Game::get_row_by_y_position(missile.position.y);
             let inside_rectangle = Rectangle {
                 position: missile.position,
@@ -395,19 +391,31 @@ impl Game {
         }
     }
 
-    fn check_win(&mut self) {
-        let mut asteroid_count = 0;
-
-        for row in self.asteroids.iter() {
-            asteroid_count += row.len();
+    fn next_generation(&mut self) {
+        if let State::NextGen(next_gen_timestamp) = self.state {
+            if time::now() >= next_gen_timestamp {
+                self.asteroids = Game::initialize_asteroids();
+                self.state = State::Running;
+            }
         }
-        if asteroid_count == 0 {
-            self.state = State::Won;
+    }
+
+    fn check_next_generation(&mut self) {
+        if let State::Running = self.state {
+            let mut asteroid_count = 0;
+            
+            for row in self.asteroids.iter() {
+                asteroid_count += row.len();
+            }
+            if asteroid_count == 0 {
+                self.state = State::NextGen(time::now() + settings::NEXT_GENERATION_DELAY);
+            }
         }
     }
 
     fn update(&mut self) {
-        self.check_win();
+        self.check_next_generation();
+        self.next_generation();
         self.check_spaceship_crash();
         self.missiles = Game::sort_missiles(self.missiles.clone());
         self.shot();
@@ -418,84 +426,94 @@ impl Game {
         self.clear_asteroids();
     }
 
-    fn get_inputs(&mut self) {
-        self.spaceship.position.y = self.ui.event_pump.mouse_state().y() - settings::SPACESHIP_HEIGHT as i32 / 2;
+    fn get_inputs(&mut self, rx: &Receiver<U2GMessage>) {
+        let rx_message = rx.try_iter();
 
-        for event in self.ui.event_pump.poll_iter() {
-            match event {
-                Event::MouseButtonDown {
-                    mouse_btn: MouseButton::Left,
-                    ..
-                } => {
-                    self.spaceship.shooting = true;
+        for message in rx_message {
+            match message {
+                U2GMessage::MouseMotion(mouse_position) => {
+                    self.spaceship.position.y = mouse_position.y - settings::SPACESHIP_HEIGHT as i32 / 2;
                 }
-                Event::MouseButtonUp {
-                    mouse_btn: MouseButton::Left,
-                    ..
-                } => {
-                    self.spaceship.shooting = false;
-                }
-
-                Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => {
-                    match self.state {
-                        State::Running => self.state = State::Paused,
-                        State::Paused => self.state = State::Running,
-
+                U2GMessage::Event(event) => {
+                    match event {
+                        Event::MouseButtonDown {
+                            mouse_btn: MouseButton::Left,
+                            ..
+                        } => {
+                            self.spaceship.shooting = true;
+                        }
+                        Event::MouseButtonUp {
+                            mouse_btn: MouseButton::Left,
+                            ..
+                        } => {
+                            self.spaceship.shooting = false;
+                        }
+        
+                        Event::KeyDown {
+                            keycode: Some(Keycode::Escape),
+                            ..
+                        } => {
+                            match self.state {
+                                State::Running => self.state = State::Paused,
+                                State::Paused => self.state = State::Running,
+        
+                                _ => {}
+                            }
+                        }
+        
+                        Event::KeyDown {
+                            keycode: Some(Keycode::F5),
+                            ..
+                        } => {
+                            match self.debug {
+                                Debug::Not => self.debug = Debug::Debugging,
+                                Debug::Debugging => self.debug = Debug::Not,
+                            }
+                        }
+                        Event::KeyDown {
+                            keycode: Some(Keycode::F6),
+                            ..
+                        } => {
+                            self.debug_options = DebugOptions {
+                                generation_line: !self.debug_options.generation_line,
+                                ..self.debug_options
+                            }
+                        }
+                        Event::KeyDown {
+                            keycode: Some(Keycode::F7),
+                            ..
+                        } => {
+                            self.debug_options = DebugOptions {
+                                rows_starting_line: !self.debug_options.rows_starting_line,
+                                ..self.debug_options
+                            }
+                        }
+                        Event::KeyDown {
+                            keycode: Some(Keycode::F8),
+                            ..
+                        } => {
+                            self.debug_options = DebugOptions {
+                                object_count: !self.debug_options.object_count,
+                                ..self.debug_options
+                            }
+                        }
+                        Event::KeyDown {
+                            keycode: Some(Keycode::F12),
+                            ..
+                        } => {
+                            println!("Asteroids: {:#?}", self.asteroids);
+                            println!("Missiles: {:#?}", self.missiles);
+                        }
+        
+                        Event::Quit {..} => {
+                            self.state = State::Closed;
+                        }
                         _ => {}
                     }
                 }
-
-                Event::KeyDown {
-                    keycode: Some(Keycode::F5),
-                    ..
-                } => {
-                    match self.debug {
-                        Debug::Not => self.debug = Debug::Debugging,
-                        Debug::Debugging => self.debug = Debug::Not,
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::F6),
-                    ..
-                } => {
-                    self.debug_options = DebugOptions {
-                        generation_line: !self.debug_options.generation_line,
-                        ..self.debug_options
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::F7),
-                    ..
-                } => {
-                    self.debug_options = DebugOptions {
-                        rows_starting_line: !self.debug_options.rows_starting_line,
-                        ..self.debug_options
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::F8),
-                    ..
-                } => {
-                    self.debug_options = DebugOptions {
-                        object_count: !self.debug_options.object_count,
-                        ..self.debug_options
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::F12),
-                    ..
-                } => {
-                    println!("Asteroids: {:#?}", self.asteroids);
-                    println!("Missiles: {:#?}", self.missiles);
-                }
-
-                Event::Quit {..} => {
+                U2GMessage::Close => {
                     self.state = State::Closed;
                 }
-                _ => {}
             }
         }
     }
@@ -504,33 +522,20 @@ impl Game {
         ::std::thread::sleep(std::time::Duration::new(0, 1_000_000_000u32 / fps));
     }
 
-    fn run(&mut self) {
-        self.get_inputs();
-
-        match &self.state {
-            State::Running => self.update(),
-            _ => {}
-        }
-    
-        Ui::draw(self);
-        Game::delay_fps(settings::FPS);
-    } 
-
-    pub fn init(&mut self) {
+    pub fn init(&mut self, tx: &Sender<G2UMessage>, rx: &Receiver<U2GMessage>) {
         'main_loop: loop {
             match self.state {
-                State::Running | State::Paused => {
-                    self.run();
+                State::Running | State::Paused | State::NextGen(..) => {
+                    self.get_inputs(rx);
+
+                    if let State::Running | State::NextGen(..) = &self.state {
+                        self.update()
+                    }
+                                    
+                    tx.send(G2UMessage::StateUpdate(self.clone())).unwrap();
+                    Game::delay_fps(settings::FPS);
                 }
-                State::Died => {
-                    println!("You died :/");
-                    break 'main_loop;
-                }
-                State::Won => {
-                    println!("You won, you can adjust the settings to be harder!");
-                    break 'main_loop;
-                }
-                State::Closed => {
+                _ => {
                     break 'main_loop;
                 }
             }

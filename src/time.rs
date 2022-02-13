@@ -8,3 +8,7 @@ pub fn now() -> u128 {
                     .as_nanos();
     return now_nano;
 }
+
+pub const fn to_nano(milliseconds: u16) -> u128 {
+    return milliseconds as u128 * 1_000_000;
+}
