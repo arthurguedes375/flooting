@@ -6,6 +6,7 @@ use sdl2::render;
 use sdl2::image::{InitFlag, LoadTexture};
 use sdl2::pixels::Color;
 use sdl2::render::Texture;
+use sdl2::keyboard::Keycode;
 
 use sdl2::rect::Rect;
 use sdl2::ttf::Font;
@@ -15,11 +16,12 @@ use std::path::Path;
 
 use crate::helper::{G2UMessage, U2GMessage};
 use crate::physics::{Position};
+use crate::asteroid::Asteroid;
 use crate::settings;
 use crate::rectangle::{Rectangle, Size, RectangleSize};
 use crate::game;
 
-use game::{Game, Debug};
+use game::{Game};
 
 type TextureCreator = sdl2::render::TextureCreator<sdl2::video::WindowContext>;
 
@@ -166,7 +168,11 @@ impl Ui {
             size: Size::Rectangle(size)
         };
 
-        canvas.set_draw_color(settings::LIFE_COLOR);
+        if game.debugging && game.debug_options.invincible  {
+            canvas.set_draw_color(settings::DEBUG_COLOR);
+        } else {
+            canvas.set_draw_color(settings::LIFE_COLOR);
+        }
         canvas.fill_rect(Rect::new(
             life_rectangle.position.x,
             life_rectangle.position.y,
@@ -185,6 +191,31 @@ impl Ui {
                     };
                     tx.send(U2GMessage::MouseMotion(mouse_position)).unwrap();
                 }
+                Event::KeyDown {
+                    keycode: Some(Keycode::H),
+                    ..
+                } => {
+                    println!(
+"Key binds:
+    - Mouse's Left Button: Shoot
+    - Mouse's Right Button: Stop shooting
+    - Escape: Pause the game
+
+Debugging:
+    - F5: Toggle debug mode
+    - F12: Print to console all the asteroids and missiles data.
+
+    The following key binds will only work if the debug mode is active:
+    - F6: Toggle visibility of the generation line.
+    - F7: Toggle visibility of the rows positions.
+    - F8: Toggle visibility of the object count.
+    - F9: Toggle invincibility.
+    - F10: Toggle asteroid generation.
+
+
+"
+);
+                }
                 Event::Quit {..} => {
                     tx.send(U2GMessage::Close).unwrap();
                 }
@@ -202,27 +233,28 @@ impl Ui {
         position: Position,
         font: &Font,
         texture_creator: &TextureCreator,
-    ) -> Rectangle {
-        let surface = font
-            .render(text)
-            .blended(color)
-            .unwrap();
-        let texture = texture_creator
-            .create_texture_from_surface(&surface)
-            .unwrap();
+        line_height: Option<u16>,
+    ) {
+        let text_lines: Vec<&str> = text.split("\n").filter(|line| line.len() > 0).collect();
+        let line_height = line_height.unwrap_or(15);
 
-        let render::TextureQuery { width, height, .. } = texture.query();
+        for (line_i, &line) in text_lines.iter().enumerate() {
+            let surface = font
+                .render(line)
+                .blended(color)
+                .unwrap();
+            let texture = texture_creator
+                .create_texture_from_surface(&surface)
+                .unwrap();
 
-        let target = Rect::new(position.x, position.y, width, height);
-        self.canvas.copy(&texture, None, Some(target)).unwrap();
+            let render::TextureQuery { width, height, .. } = texture.query();
+        
+            let target = Rect::new(position.x, position.y + line_height as i32 * line_i as i32, width, height);
+            self.canvas.copy(&texture, None, Some(target)).unwrap();
 
-        return Rectangle {
-            position,
-            size: Size::Rectangle(RectangleSize {
-                width,
-                height,
-            })
         }
+
+        
     }
 
     fn draw_sprite(
@@ -282,15 +314,12 @@ impl Ui {
 
             self.draw_background(&sprites_texture);
 
-            match game.debug {
-                Debug::Debugging => {
-                    self.debug(
-                        game,
-                        &debug_font,
-                        &texture_creator,
-                    );
-                }
-                _ => {}
+            if game.debugging {
+                self.debug(
+                    game,
+                    &debug_font,
+                    &texture_creator,
+                );
             }
 
             self.draw_spaceship(game, &sprites_texture);
@@ -312,7 +341,7 @@ impl Ui {
 
         if game.debug_options.generation_line {
             // Draw Generation Line
-            if Game::appearing_asteroids(game.asteroids.clone()) > 0 {
+            if Asteroid::appearing_asteroids(game.asteroids.clone()) > 0 {
                 canvas.set_draw_color(Color::CYAN);
             } else {
                 canvas.set_draw_color(settings::DEBUG_COLOR);
@@ -370,50 +399,35 @@ impl Ui {
             canvas.draw_rects(&rects_with_missiles).unwrap();
         }
 
-        if game.debug_options.object_count {
+        if game.debug_options.game_state {
             let missiles = game.missiles.len();
             let mut asteroids = 0;
             for row in game.asteroids.iter() {
                 asteroids += row.len();
             }
 
-            let missiles_count_text = self.write_text(
-                &format!("Missiles count: {}", missiles),
+            let info_text = format!(
+"Missiles count: {missile_count}   - Asteroids generation: {asteroids_generation}
+Asteroids count: {asteroids_count} - Invincible: {invincible}
+Life: {life}
+",
+missile_count=missiles,
+asteroids_count=asteroids,
+life=game.spaceship.life,
+asteroids_generation=game.debug_options.asteroid_generation,
+invincible=game.debug_options.invincible,
+);
+
+            self.write_text(
+                &info_text,
                 settings::DEBUG_COLOR,
                 Position {
                     x: 10,
                     y: 10,
                 }, 
                 debug_font,
-                texture_creator
-            );
-
-            let missiles_count_text_corners = missiles_count_text.get_corners();
-            let missiles_count_text_size = Rectangle::to_rectangle_size(missiles_count_text.size);
-
-            let asteroids_count_text = self.write_text(
-                &format!("Asteroids count: {}", asteroids),
-                settings::DEBUG_COLOR,
-                Position {
-                    x: 10,
-                    y: missiles_count_text_corners.top_left.y + missiles_count_text_size.height as i32 + 20,
-                }, 
-                debug_font,
-                texture_creator
-            );
-
-            let asteroids_count_text_corners = asteroids_count_text.get_corners();
-            let asteroids_count_text_size = Rectangle::to_rectangle_size(asteroids_count_text.size);
-
-            let _life_display_text = self.write_text(
-                &format!("Life: {}", game.spaceship.life),
-                settings::DEBUG_COLOR,
-                Position {
-                    x: 10,
-                    y: asteroids_count_text_corners.top_left.y + asteroids_count_text_size.height as i32 + 20,
-                }, 
-                debug_font,
-                texture_creator
+                texture_creator,
+                None,
             );
         }
     }

@@ -67,7 +67,9 @@ pub const DEBUG_COLOR: Color = Color::MAGENTA;
 pub const DEFAULT_DEBUG_OPTIONS: DebugOptions = DebugOptions {
     generation_line: true,
     rows: true,
-    object_count: true,
+    game_state: true,
+    invincible: true,
+    asteroid_generation: true,
 };
 
 // Spaceship
