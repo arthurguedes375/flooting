@@ -1,4 +1,4 @@
-use crate::helper::Position;
+use crate::physics::Position;
 
 pub struct RectangleCornersPositions {
     pub top_left: Position,
