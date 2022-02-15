@@ -1,4 +1,4 @@
-use crate::physics::{Direction};
+use crate::physics::{ChangingFactor};
 
 use crate::missile::MissileData;
 
@@ -9,11 +9,11 @@ pub struct Bomb {}
 impl Bomb {
     pub fn get_missile_data() -> MissileData {
         return MissileData {
-            direction: Direction {
+            direction: ChangingFactor {
                 x: 0_f32,
                 y: 0_f32,
             },
-            acceleration: Direction {
+            acceleration: ChangingFactor {
                 x: 0_f32,
                 y: 0_f32,
             },

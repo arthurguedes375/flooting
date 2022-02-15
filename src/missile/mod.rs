@@ -1,14 +1,14 @@
 use crate::settings;
 use crate::physics;
 use crate::rectangle::{Rectangle, Size, RectangleSize};
-use physics::{Position, Direction};
+use physics::{Position, ChangingFactor};
 
 // Missile Types
 pub mod missiles;
 
 pub struct MissileData {
-    pub direction: Direction,
-    pub acceleration: Direction,
+    pub direction: ChangingFactor,
+    pub acceleration: ChangingFactor,
     pub delay: u128,
 }
 
@@ -21,8 +21,9 @@ pub enum MissileType {
 #[derive(Clone, Debug)]
 pub struct Missile {
     pub position: Position,
-    pub direction: Direction,
-    pub acceleration: Direction,
+    pub velocity: ChangingFactor,
+    pub direction: ChangingFactor,
+    pub acceleration: ChangingFactor,
     pub active: bool,
     pub missile_type: MissileType,
 }
@@ -71,9 +72,20 @@ impl Missile {
                 }
                 
                 missile.position = physics::next_position(
-                    missile.position,
-                    missile.direction,
-                    missile.acceleration,
+                    Rectangle {
+                        position: missile.position,
+                        size: Size::Rectangle(RectangleSize {
+                            width: settings::MISSILE_WIDTH,
+                            height: settings::MISSILE_HEIGHT,
+                        }),
+                    },
+                    missile.velocity,
+                    vec![
+                        physics::Force {
+                            direction: missile.direction,
+                            acceleration: missile.acceleration,
+                        }
+                    ]
                 );
 
                 return missile;
