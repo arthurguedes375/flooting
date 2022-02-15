@@ -1,12 +1,7 @@
 use sdl2::event::Event;
 
+use crate::physics::Position;
 use crate::game::Game;
-
-#[derive(Clone, Copy, Debug)]
-pub struct Position {
-    pub x: i32,
-    pub y: i32,
-}
 
 pub enum G2UMessage {
     StateUpdate(Game)

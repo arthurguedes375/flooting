@@ -1,16 +1,21 @@
 use sdl2::event::Event;
 use sdl2::mouse::MouseButton;
 use sdl2::keyboard::Keycode;
+use std::sync::mpsc::{Sender, Receiver};
 
 use rand::Rng;
 
 use crate::time;
 use crate::settings;
-use crate::helper::{Position, G2UMessage, U2GMessage};
+use crate::physics;
+use crate::missile;
+use crate::helper::{G2UMessage, U2GMessage};
 use crate::rectangle::{Rectangle, Size, RectangleSize};
 use crate::ui::Ui;
 
-use std::sync::mpsc::{Sender, Receiver};
+use missile::{Missile, MissileType};
+use physics::{Position, Direction};
+
 
 pub type AsteroidRow = Vec<Asteroid>;
 pub type AsteroidRows = Vec<AsteroidRow>;
@@ -26,13 +31,8 @@ pub struct Asteroid {
     pub position: Position,
     pub row: usize,
     pub size: u8,
-    pub speed: u32,
-}
-
-#[derive(Clone, Debug)]
-pub struct Missile {
-    pub position: Position,
-    pub active: bool,
+    pub direction: Direction,
+    pub acceleration: Direction,
 }
 
 #[derive(Clone)]
@@ -40,6 +40,7 @@ pub struct Spaceship {
     pub position: Position,
     pub life: u8,
     pub shooting: bool,
+    pub missile_type: MissileType,
 }
 
 #[derive(Clone)]
@@ -85,10 +86,11 @@ impl Game {
                 },
                 life: settings::SPACESHIP_LIFE,
                 shooting: false,
+                missile_type: MissileType::Normal,
             },
             shooting_info: ShootingInfo {
-                last_shot_time: time::now() - Game::nanoseconds_shot_delay(settings::SHOTS_PER_SECOND),
-                delay_to_next_shot: Game::nanoseconds_shot_delay(settings::SHOTS_PER_SECOND),
+                last_shot_time: time::now(),
+                delay_to_next_shot: 0,
             },
             asteroids: Game::initialize_asteroids(),
             missiles: vec![],
@@ -113,10 +115,6 @@ impl Game {
 
     pub fn get_row_by_y_position(y_position: i32) -> usize {
         return (y_position as i64 / settings::ASTEROIDS_ROWS_HEIGHT as i64) as usize; 
-    }
-
-    fn nanoseconds_shot_delay(shots_per_second: u16) -> u128 {
-        return ((1.0 / shots_per_second as f32) * 1_000_000_000.0) as u128;
     }
 
     fn generate_asteroid(
@@ -176,9 +174,16 @@ impl Game {
             position: asteroid_position,
             size,
             row,
-            speed: rng.gen_range(
-                settings::MIN_ASTEROIDS_SPEED..settings::MAX_ASTEROIDS_SPEED
-            )
+            direction: Direction {
+                x: -1_f32,
+                y: 0_f32,
+            },
+            acceleration: Direction {
+                x: rng.gen_range(
+                        settings::MIN_ASTEROIDS_SPEED..settings::MAX_ASTEROIDS_SPEED
+                    ) as f32,
+                y: 0_f32,
+            }
         };
 
         return generated_asteroid;
@@ -204,33 +209,6 @@ impl Game {
         return asteroids;
     }
 
-    fn sort_missiles(missiles: Vec<Missile>) -> Vec<Missile> {
-        let mut inactive_missiles_first: Vec<Missile> = vec![];
-        let mut active_missiles: Vec<Missile> = vec![];
-
-        for missile in missiles.clone().iter() {
-            if missile.active == true {
-                active_missiles.push(missile.clone());
-                continue;
-            }
-            
-            inactive_missiles_first.push(missile.clone());
-        }
-
-        inactive_missiles_first.extend(active_missiles);
-        
-        return inactive_missiles_first;
-    }
-
-    fn next_position(rectangle_position: Position, speed: u32, direction: Position) -> Position {
-        let next_pos = Position {
-            x: rectangle_position.x + direction.x * speed as i32,
-            y: rectangle_position.y + direction.y * speed as i32,
-        };
-
-        return next_pos;
-    }
-
     pub fn appearing_asteroids(asteroids: AsteroidRows) -> i32 {
         let mut appearing_asteroids = 0;
 
@@ -243,13 +221,10 @@ impl Game {
 
                 if (corners.top_left.x as i64) < settings::WINDOW_WIDTH as i64
                 && corners.top_left.x as i64 > settings::WINDOW_WIDTH as i64 - settings::GENERATE_NEW_ASTEROID_AFTER as i64 {
-                    let next_position = Game::next_position(
+                    let next_position = physics::next_position(
                         asteroid.position,
-                        asteroid.speed,
-                        Position {
-                            x: -1,
-                            y: 0,
-                        },
+                        asteroid.direction,
+                        asteroid.acceleration,
                     );
                     let corners = Rectangle {
                         position: next_position,
@@ -280,13 +255,10 @@ impl Game {
         self.asteroids = Game::map_asteroids(self.asteroids.clone(), |row| {
             row.iter().map(|asteroid| {
                 Asteroid {
-                    position: Game::next_position(
+                    position: physics::next_position(
                         asteroid.position,
-                        asteroid.speed,
-                        Position {
-                            x: -1,
-                            y: 0,
-                        }
+                        asteroid.direction,
+                        asteroid.acceleration,
                     ),
                     ..*asteroid
                 }
@@ -304,10 +276,11 @@ impl Game {
         for row in self.asteroids.iter() {
             for asteroid in row.iter() {
                 let new_spaceship_life = self.spaceship.life as i16 - asteroid.size as i16;
-                let next_pos = Game::next_position(asteroid.position, asteroid.speed, Position {
-                    x: -1,
-                    y: 0,
-                });
+                let next_pos = physics::next_position(
+                    asteroid.position,
+                    asteroid.direction,
+                    asteroid.acceleration,
+                );
 
                 if next_pos.x < self.spaceship.position.x && asteroid.position.x > self.spaceship.position.x && new_spaceship_life > 0 {
                     if self.spaceship.life as i32 - (asteroid.size as i32) < 0 {
@@ -329,7 +302,10 @@ impl Game {
                 position: Position {
                     x: self.spaceship.position.x + settings::SPACESHIP_WIDTH as i32 / 2,
                     y: self.spaceship.position.y + settings::SPACESHIP_HEIGHT as i32 / 2,
-                }
+                },
+                missile_type: self.spaceship.missile_type,
+                direction: Missile::get_types_data(self.spaceship.missile_type).direction,
+                acceleration: Missile::get_types_data(self.spaceship.missile_type).acceleration,
             };
             
             if self.missiles.len() > 0 && self.missiles[0].active == false {
@@ -339,29 +315,7 @@ impl Game {
             }
 
             self.shooting_info.last_shot_time = time::now();
-        }
-    }
-
-    fn update_missiles_position(&mut self) {
-        for (missile_i, missile) in self.missiles.clone().iter().enumerate() {
-            if !missile.active { continue; } 
-            let corners = Rectangle {
-                position: Position {
-                    x: missile.position.x,
-                    y: missile.position.y,
-                },
-                size: Size::Rectangle(RectangleSize {
-                    width: settings::MISSILE_WIDTH,
-                    height: settings::MISSILE_HEIGHT,
-                }),
-            }.get_corners();
-
-            if corners.top_left.x > settings::WINDOW_WIDTH as i32 {
-                self.missiles[missile_i].active = false;
-                continue;
-            }
-            
-            self.missiles[missile_i].position.x += settings::MISSILE_SPEED as i32;
+            self.shooting_info.delay_to_next_shot = Missile::get_types_data(self.spaceship.missile_type).delay;
         }
     }
 
@@ -426,10 +380,10 @@ impl Game {
         self.check_next_generation();
         self.next_generation();
         self.check_spaceship_crash();
-        self.missiles = Game::sort_missiles(self.missiles.clone());
+        self.missiles = Missile::sort_missiles(self.missiles.clone());
         self.shot();
         self.check_missile_collision();
-        self.update_missiles_position();
+        self.missiles = Missile::update_missiles_position(self.missiles.clone());
         self.asteroids_generation();
         self.update_asteroids_positions();
         self.clear_asteroids();

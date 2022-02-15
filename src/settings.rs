@@ -1,6 +1,6 @@
 use sdl2::pixels::Color;
 
-use crate::helper::Position;
+use crate::physics::Position;
 
 use crate::time;
 use crate::game::{DebugOptions};
@@ -11,7 +11,6 @@ pub const WINDOW_TITLE: &str = "Flooting";
 pub const WINDOW_WIDTH: u32 = 1200;
 // pub const WINDOW_HEIGHT: u32 = 600;
 pub const WINDOW_HEIGHT: u32 = 845;
-pub const WINDOW_BACKGROUND: Color = Color::RGB(0, 2, 46);
 pub const FPS: u32 = 60;
 
 // NextGen
@@ -84,7 +83,6 @@ pub const INITIAL_SPACESHIP_POSITION: Position = Position {
 // Missile
 pub const MISSILE_WIDTH: u32 = 15;
 pub const MISSILE_HEIGHT: u32 = 10;
-pub const MISSILE_SPEED: u32 = 10;
 pub const SHOTS_PER_SECOND: u16 = 10;
 pub const MISSILE_COLOR: Color = Color::YELLOW;
 

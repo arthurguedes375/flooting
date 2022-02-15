@@ -13,7 +13,8 @@ use sdl2::ttf::Font;
 use std::sync::mpsc::{Sender, Receiver};
 use std::path::Path;
 
-use crate::helper::{Position, G2UMessage, U2GMessage};
+use crate::helper::{G2UMessage, U2GMessage};
+use crate::physics::{Position};
 use crate::settings;
 use crate::rectangle::{Rectangle, Size, RectangleSize};
 use crate::game;
