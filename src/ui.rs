@@ -129,10 +129,7 @@ impl Ui {
         );            
     }
 
-    fn draw_missiles(&mut self, game: &mut Game) {
-        let canvas = &mut self.canvas;
-
-        let mut rects: Vec<Rect> = vec![];
+    fn draw_missiles(&mut self, game: &mut Game, sprites_texture: &Texture) {
         for missile in game.missiles.iter() {
             if missile.position.x > settings::WINDOW_WIDTH as i32 || !missile.active { continue; }
             let rect = Rectangle {
@@ -142,18 +139,12 @@ impl Ui {
                     height: settings::MISSILE_HEIGHT,
                 }),
             };
-            let corners = rect.get_corners();
-
-            rects.push(Rect::new(
-                corners.top_left.x,
-                corners.top_left.y,
-                settings::MISSILE_WIDTH,
-                settings::MISSILE_HEIGHT,
-            ));
+            self.draw_sprite(
+                sprites_texture,
+                settings::MISSILE_SPRITE_RECTANGLE,
+                rect,
+            );
         }
-
-        canvas.set_draw_color(settings::MISSILE_COLOR);
-        canvas.fill_rects(&rects).unwrap();
     }
 
     fn draw_spaceship_life(&mut self, game: &mut Game) {
@@ -302,7 +293,7 @@ impl Ui {
             }
 
             self.draw_spaceship(game, &sprites_texture);
-            self.draw_missiles(game);
+            self.draw_missiles(game, &sprites_texture);
             self.draw_asteroids(game, &sprites_texture);
             self.draw_spaceship_life(game);
 

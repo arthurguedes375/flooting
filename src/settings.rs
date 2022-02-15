@@ -39,6 +39,16 @@ pub const SPACESHIP_SPRITE_RECTANGLE: Rectangle = Rectangle {
         height: 209,
     })
 };
+pub const MISSILE_SPRITE_RECTANGLE: Rectangle = Rectangle {
+    position: Position {
+        x: 0,
+        y: 460,
+    },
+    size: Size::Rectangle(RectangleSize {
+        width: 254,
+        height: 67,
+    })
+};
 pub const BACKGROUND_SPRITE_RECTANGLE: Rectangle = Rectangle {
     position: Position {
         x: 287,
@@ -72,8 +82,8 @@ pub const INITIAL_SPACESHIP_POSITION: Position = Position {
 };
 
 // Missile
-pub const MISSILE_WIDTH: u32 = 10;
-pub const MISSILE_HEIGHT: u32 = 5;
+pub const MISSILE_WIDTH: u32 = 15;
+pub const MISSILE_HEIGHT: u32 = 10;
 pub const MISSILE_SPEED: u32 = 10;
 pub const SHOTS_PER_SECOND: u16 = 10;
 pub const MISSILE_COLOR: Color = Color::YELLOW;
