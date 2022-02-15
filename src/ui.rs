@@ -8,6 +8,8 @@ use sdl2::pixels::Color;
 use sdl2::render::Texture;
 use sdl2::keyboard::Keycode;
 
+use crate::time;
+
 use sdl2::rect::Rect;
 use sdl2::ttf::Font;
 
@@ -289,6 +291,11 @@ Debugging:
         ).unwrap();
     }
 
+    pub fn get_fps(last_frame_timestamp: u128) -> u16 {
+        let fps = (1_000_000_000 / (time::now() - last_frame_timestamp)) as u16;
+        return fps;
+    }
+
     pub fn run(&mut self, tx: &Sender<U2GMessage>, rx: &Receiver<G2UMessage>) {
         let ttf_context = sdl2::ttf::init().unwrap();
         let texture_creator = self.canvas.texture_creator();
@@ -305,6 +312,7 @@ Debugging:
         ).unwrap();
         debug_font.set_style(sdl2::ttf::FontStyle::NORMAL);
 
+        let mut last_frame_timestamp: u128 = time::now();
 
         for message in rx.iter() {
             self.inputs(tx);
@@ -317,6 +325,7 @@ Debugging:
             if game.debugging {
                 self.debug(
                     game,
+                    last_frame_timestamp,
                     &debug_font,
                     &texture_creator,
                 );
@@ -328,12 +337,14 @@ Debugging:
             self.draw_spaceship_life(game);
 
             self.canvas.present();
+            last_frame_timestamp = time::now();
         }
     }
 
     pub fn debug(
         &mut self,
         game: &mut Game,
+        last_frame_timestamp: u128,
         debug_font: &Font,
         texture_creator: &TextureCreator,
     ) {
@@ -406,16 +417,19 @@ Debugging:
                 asteroids += row.len();
             }
 
+            let fps = Ui::get_fps(last_frame_timestamp);
+
             let info_text = format!(
 "Missiles count: {missile_count}   - Asteroids generation: {asteroids_generation}
 Asteroids count: {asteroids_count} - Invincible: {invincible}
-Life: {life}
+Life: {life}        - FPS: {fps}
 ",
 missile_count=missiles,
 asteroids_count=asteroids,
 life=game.spaceship.life,
 asteroids_generation=game.debug_options.asteroid_generation,
 invincible=game.debug_options.invincible,
+fps=fps,
 );
 
             self.write_text(
