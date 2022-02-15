@@ -13,7 +13,7 @@ use crate::helper::{G2UMessage, U2GMessage};
 use crate::rectangle::{Rectangle, Size, RectangleSize};
 use crate::ui::Ui;
 
-use missile::{Missile, MissileKind};
+use missile::{Missile, MissileType};
 use physics::{Position, Direction};
 
 
@@ -40,7 +40,7 @@ pub struct Spaceship {
     pub position: Position,
     pub life: u8,
     pub shooting: bool,
-    pub missile_kind: MissileKind,
+    pub missile_type: MissileType,
 }
 
 #[derive(Clone)]
@@ -86,7 +86,7 @@ impl Game {
                 },
                 life: settings::SPACESHIP_LIFE,
                 shooting: false,
-                missile_kind: MissileKind::Normal,
+                missile_type: MissileType::Normal,
             },
             shooting_info: ShootingInfo {
                 last_shot_time: time::now(),
@@ -303,9 +303,9 @@ impl Game {
                     x: self.spaceship.position.x + settings::SPACESHIP_WIDTH as i32 / 2,
                     y: self.spaceship.position.y + settings::SPACESHIP_HEIGHT as i32 / 2,
                 },
-                kind: self.spaceship.missile_kind,
-                direction: Missile::get_kinds_data(self.spaceship.missile_kind).direction,
-                acceleration: Missile::get_kinds_data(self.spaceship.missile_kind).acceleration,
+                missile_type: self.spaceship.missile_type,
+                direction: Missile::get_types_data(self.spaceship.missile_type).direction,
+                acceleration: Missile::get_types_data(self.spaceship.missile_type).acceleration,
             };
             
             if self.missiles.len() > 0 && self.missiles[0].active == false {
@@ -315,7 +315,7 @@ impl Game {
             }
 
             self.shooting_info.last_shot_time = time::now();
-            self.shooting_info.delay_to_next_shot = Missile::get_kinds_data(self.spaceship.missile_kind).delay;
+            self.shooting_info.delay_to_next_shot = Missile::get_types_data(self.spaceship.missile_type).delay;
         }
     }
 

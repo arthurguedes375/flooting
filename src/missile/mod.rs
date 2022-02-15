@@ -3,7 +3,7 @@ use crate::physics;
 use crate::rectangle::{Rectangle, Size, RectangleSize};
 use physics::{Position, Direction};
 
-// Missile kinds
+// Missile Types
 pub mod missiles;
 
 pub struct MissileData {
@@ -13,7 +13,7 @@ pub struct MissileData {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum MissileKind {
+pub enum MissileType {
     Normal,
     Bomb,
 }
@@ -24,7 +24,7 @@ pub struct Missile {
     pub direction: Direction,
     pub acceleration: Direction,
     pub active: bool,
-    pub kind: MissileKind,
+    pub missile_type: MissileType,
 }
 
 impl Missile {
@@ -82,10 +82,10 @@ impl Missile {
         return updated_missiles;
     }
 
-    pub fn get_kinds_data(missile_kind: MissileKind) -> MissileData {
-        match missile_kind {
-            MissileKind::Normal => missiles::Normal::get_missile_data(),
-            MissileKind::Bomb => missiles::Bomb::get_missile_data(),
+    pub fn get_types_data(missile_type: MissileType) -> MissileData {
+        match missile_type {
+            MissileType::Normal => missiles::Normal::get_missile_data(),
+            MissileType::Bomb => missiles::Bomb::get_missile_data(),
         }
     }
 }
