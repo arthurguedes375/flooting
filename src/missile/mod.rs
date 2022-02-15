@@ -2,23 +2,28 @@ use crate::settings;
 use crate::physics;
 use crate::rectangle::{Rectangle, Size, RectangleSize};
 use physics::{Position, ChangingFactor};
+use crate::game::Game;
+use crate::asteroid::Asteroid;
 
 // Missile Types
 pub mod missiles;
 
 pub struct MissileData {
+    pub initial_velocity: ChangingFactor,
     pub direction: ChangingFactor,
     pub acceleration: ChangingFactor,
     pub delay: u128,
 }
 
-#[derive(Clone, Copy, Debug)]
+pub type CollisionHandler = fn (Game, &mut Missile, &mut Asteroid) -> Game; 
+
+#[derive(Clone, Copy)]
 pub enum MissileType {
     Normal,
     Bomb,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Missile {
     pub position: Position,
     pub velocity: ChangingFactor,
@@ -26,6 +31,7 @@ pub struct Missile {
     pub acceleration: ChangingFactor,
     pub active: bool,
     pub missile_type: MissileType,
+    pub collision_handler: CollisionHandler,
 }
 
 impl Missile {
@@ -33,7 +39,7 @@ impl Missile {
         let mut inactive_missiles_first: Vec<Missile> = vec![];
         let mut active_missiles: Vec<Missile> = vec![];
 
-        for missile in missiles.clone().iter() {
+        for missile in missiles.clone().iter_mut() {
             if missile.active == true {
                 active_missiles.push(missile.clone());
                 continue;
@@ -66,7 +72,10 @@ impl Missile {
                     }),
                 }.get_corners();
 
-                if corners.top_left.x > settings::WINDOW_WIDTH as i32 {
+                if corners.top_left.x > settings::WINDOW_WIDTH as i32
+                || corners.top_left.x < 0
+                || corners.top_left.y > settings::WINDOW_HEIGHT as i32
+                || corners.top_left.y < 0{
                     missile.active = false;
                     return missile;
                 }
@@ -98,6 +107,13 @@ impl Missile {
         match missile_type {
             MissileType::Normal => missiles::Normal::get_missile_data(),
             MissileType::Bomb => missiles::Bomb::get_missile_data(),
+        }
+    }
+
+    pub fn get_types_handler(missile_type: MissileType) -> CollisionHandler {
+        match missile_type {
+            MissileType::Normal => missiles::Normal::collision_handler,
+            MissileType::Bomb => missiles::Bomb::collision_handler,
         }
     }
 }
