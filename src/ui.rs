@@ -205,7 +205,6 @@ impl Ui {
 
 Debugging:
     - F5: Toggle debug mode
-    - F12: Print to console all the asteroids and missiles data.
 
     The following key binds will only work if the debug mode is active:
     - F6: Toggle visibility of the generation line.

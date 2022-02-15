@@ -13,7 +13,7 @@ use crate::rectangle::{Rectangle, Size, RectangleSize};
 use crate::ui::Ui;
 
 use missile::{Missile, MissileType};
-use physics::{Position, ChangingFactor};
+use physics::{Position};
 
 
 pub type AsteroidRow = Vec<Asteroid>;
@@ -152,10 +152,7 @@ impl Game {
         if self.spaceship.shooting && time::now() >= self.shooting_info.last_shot_time + self.shooting_info.delay_to_next_shot{
             let missile = Missile {
                 active: true,
-                velocity: ChangingFactor {
-                    x: 10.0,
-                    y: 0.0,
-                },
+                velocity: Missile::get_types_data(self.spaceship.missile_type).initial_velocity,
                 position: Position {
                     x: self.spaceship.position.x + settings::SPACESHIP_WIDTH as i32 / 2,
                     y: self.spaceship.position.y + settings::SPACESHIP_HEIGHT as i32 / 2,
@@ -163,6 +160,7 @@ impl Game {
                 missile_type: self.spaceship.missile_type,
                 direction: Missile::get_types_data(self.spaceship.missile_type).direction,
                 acceleration: Missile::get_types_data(self.spaceship.missile_type).acceleration,
+                collision_handler: Missile::get_types_handler(self.spaceship.missile_type),
             };
             
             if self.missiles.len() > 0 && self.missiles[0].active == false {
@@ -177,9 +175,7 @@ impl Game {
     }
 
     fn check_missile_collision(&mut self) {
-        for (missile_i, _) in self.missiles.clone().iter().enumerate() {
-            let missile = &mut self.missiles[missile_i];
-
+        for (missile_i, missile) in self.missiles.clone().iter_mut().enumerate() {
             if !missile.active { continue; }
 
             let missiles_row = Game::get_row_by_y_position(missile.position.y);
@@ -194,17 +190,17 @@ impl Game {
                 continue;
             }
             
-            for (asteroid_i, _) in self.asteroids[missiles_row].clone().iter().enumerate() {
-                let asteroid = &mut self.asteroids[missiles_row][asteroid_i];
-
+            for (asteroid_i, asteroid) in self.asteroids[missiles_row].clone().iter_mut().enumerate() {
                 let outside_rectangle = Rectangle {
                     position: asteroid.position,
                     size: Size::Square(Ui::to_pixels(asteroid.size as u32)),
                 };
                 
                 if inside_rectangle.over(outside_rectangle) {
-                    asteroid.size -= 1;
-                    missile.active = false;
+                    *self = (missile.collision_handler)(self.clone(), missile, asteroid);
+                    self.asteroids[missiles_row][asteroid_i] = *asteroid;
+                    self.missiles[missile_i] = missile.clone();
+
                     break;
                 }
             }
@@ -266,16 +262,34 @@ impl Game {
                 }
                 U2GMessage::Event(event) => {
                     match event {
+
                         Event::MouseButtonDown {
                             mouse_btn: MouseButton::Left,
                             ..
                         } => {
+                            self.spaceship.missile_type = MissileType::Normal;
                             self.spaceship.shooting = true;
                         }
                         Event::MouseButtonUp {
                             mouse_btn: MouseButton::Left,
                             ..
                         } => {
+                            self.spaceship.missile_type = MissileType::Normal;
+                            self.spaceship.shooting = false;
+                        }
+
+                        Event::MouseButtonDown {
+                            mouse_btn: MouseButton::Right,
+                            ..
+                        } => {
+                            self.spaceship.missile_type = MissileType::Bomb;
+                            self.spaceship.shooting = true;
+                        }
+                        Event::MouseButtonUp {
+                            mouse_btn: MouseButton::Right,
+                            ..
+                        } => {
+                            self.spaceship.missile_type = MissileType::Bomb;
                             self.spaceship.shooting = false;
                         }
         
@@ -341,13 +355,6 @@ impl Game {
                                 asteroid_generation: !self.debug_options.asteroid_generation,
                                 ..self.debug_options
                             }
-                        }
-                        Event::KeyDown {
-                            keycode: Some(Keycode::F12),
-                            ..
-                        } => {
-                            println!("Asteroids: {:#?}", self.asteroids);
-                            println!("Missiles: {:#?}", self.missiles);
                         }
         
                         Event::Quit {..} => {
