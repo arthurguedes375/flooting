@@ -23,7 +23,7 @@ impl Bomb {
                 y: 0.0,
             },
             acceleration: ChangingFactor {
-                x: 200.0,
+                x: 20.0,
                 y: 0.0,
             },
             delay: time::to_nano(1000 / 10),
@@ -33,7 +33,6 @@ impl Bomb {
     pub fn collision_handler(game: &mut Game, missile: &mut Missile, asteroid: &mut Asteroid) {
         (*missile).active = false;
         (*asteroid).size -= 1;
-
 
         let lookup_directions_table = [
             (-1.0, -1.0),
@@ -70,8 +69,6 @@ impl Bomb {
             } else {
                 game.missiles.push(next_missile);
             }
-
         }
-
     }
 }
