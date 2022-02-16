@@ -351,7 +351,7 @@ Debugging:
 
         if game.debug_options.generation_line {
             // Draw Generation Line
-            if Asteroid::appearing_asteroids(game.asteroids.clone()) > 0 {
+            if Asteroid::appearing_asteroids(&game.asteroids) > 0 {
                 canvas.set_draw_color(Color::CYAN);
             } else {
                 canvas.set_draw_color(settings::DEBUG_COLOR);

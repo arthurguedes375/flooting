@@ -105,11 +105,11 @@ impl Game {
                 return;
             }
         }
-        let appearing_asteroids = Asteroid::appearing_asteroids(self.asteroids.clone());
+        let appearing_asteroids = Asteroid::appearing_asteroids(&self.asteroids);
 
         let mut rng = rand::thread_rng();
         for _ in 0..appearing_asteroids {
-            let generated_asteroid = Asteroid::new(&mut rng, Some(self.asteroids.clone()), None);
+            let generated_asteroid = Asteroid::new(&mut rng, Some(&self.asteroids), None);
             self.asteroids[generated_asteroid.row].push(generated_asteroid);
         }
     }
@@ -175,7 +175,8 @@ impl Game {
     }
 
     fn check_missile_collision(&mut self) {
-        for (missile_i, missile) in self.missiles.clone().iter_mut().enumerate() {
+        let mut cloned_missiles = self.missiles.clone();
+        for (missile_i, missile) in cloned_missiles.iter_mut().enumerate() {
             if !missile.active { continue; }
 
             let missiles_row = Game::get_row_by_y_position(missile.position.y);
@@ -189,15 +190,17 @@ impl Game {
             if missiles_row >= self.asteroids.len() {
                 continue;
             }
+
+            let mut cloned_asteroids = self.asteroids[missiles_row].clone();
             
-            for (asteroid_i, asteroid) in self.asteroids[missiles_row].clone().iter_mut().enumerate() {
+            for (asteroid_i, asteroid) in cloned_asteroids.iter_mut().enumerate() {
                 let outside_rectangle = Rectangle {
                     position: asteroid.position,
                     size: Size::Square(Ui::to_pixels(asteroid.size as u32)),
                 };
                 
                 if inside_rectangle.over(outside_rectangle) {
-                    *self = (missile.collision_handler)(self.clone(), missile, asteroid);
+                    (missile.collision_handler)(self, missile, asteroid);
                     self.asteroids[missiles_row][asteroid_i] = *asteroid;
                     self.missiles[missile_i] = missile.clone();
 
@@ -239,17 +242,15 @@ impl Game {
         self.check_next_generation();
         self.next_generation();
         self.check_spaceship_crash();
-        self.missiles = Missile::sort_missiles(self.missiles.clone());
-
         self.shot();
         self.check_missile_collision();
 
-        self.missiles = Missile::update_missiles_position(self.missiles.clone());
+        Missile::update_missiles_position(&mut self.missiles);
 
         self.asteroids_generation();
-        self.asteroids = Asteroid::update_asteroids_positions(self.asteroids.clone());
+        Asteroid::update_asteroids_positions(&mut self.asteroids);
 
-        self.asteroids = Asteroid::unload_unused_asteroids(self.asteroids.clone());
+        Asteroid::unload_unused_asteroids(&mut self.asteroids);
     }
 
     fn get_inputs(&mut self, rx: &Receiver<U2GMessage>) {
