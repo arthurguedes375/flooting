@@ -30,11 +30,10 @@ impl Bomb {
         }
     }
 
-    pub fn collision_handler(mut game: Game, missile: &mut Missile, asteroid: &mut Asteroid) -> Game {
+    pub fn collision_handler(game: &mut Game, missile: &mut Missile, asteroid: &mut Asteroid) {
         (*missile).active = false;
         (*asteroid).size -= 1;
 
-        game.missiles = Missile::sort_missiles(game.missiles.clone());
 
         let lookup_directions_table = [
             (-1.0, -1.0),
@@ -62,21 +61,17 @@ impl Bomb {
                     y: lookup_directions_table[missile_i].1,
                 },
                 collision_handler: Normal::collision_handler,
-                // collision_handler: Bomb::collision_handler,
                 missile_type: MissileType::Normal,
                 position: missile.position,
             };
             
             if missile_i == 0 {
                 *missile = next_missile;
-            }else if missile_i < game.missiles.len() && !game.missiles[missile_i].active {
-                game.missiles[missile_i] = next_missile;
             } else {
                 game.missiles.push(next_missile);
             }
 
         }
 
-        return game;
     }
 }

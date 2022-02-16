@@ -26,9 +26,8 @@ impl Normal {
         }
     }
 
-    pub fn collision_handler(game: Game, missile: &mut Missile, asteroid: &mut Asteroid) -> Game {
+    pub fn collision_handler(_game: &mut Game, missile: &mut Missile, asteroid: &mut Asteroid) {
         (*asteroid).size -= 1;
         (*missile).active = false;
-        return game;
     }
 }

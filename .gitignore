@@ -1,4 +1,5 @@
 /target
 
+benchmark
 benchmarks
-*.data
+*.data*

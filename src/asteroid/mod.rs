@@ -23,7 +23,7 @@ impl Asteroid {
 
     pub fn new(
         rng: &mut rand::prelude::ThreadRng,
-        existing_asteroids: Option<AsteroidRows>,
+        existing_asteroids: Option<&AsteroidRows>,
         row: Option<usize>,
     ) -> Asteroid {
             let row = if let Some(set_row) = row { set_row } else { rng.gen_range(0..settings::ASTEROIDS_ROWS) };
@@ -50,7 +50,7 @@ impl Asteroid {
                 }
         
                 let mut inside = false;
-                if let Some(existing_asteroids) = existing_asteroids.clone() {
+                if let Some(existing_asteroids) = existing_asteroids {
                     for row in existing_asteroids.iter() {
                         for existing_asteroid in row.iter() {
                             let outside_rectangle = Rectangle {
@@ -120,21 +120,19 @@ impl Asteroid {
         self.position.x > 0 && self.size > 0
     }
 
-    pub fn update_asteroids_positions(mut asteroids: AsteroidRows) -> AsteroidRows {
-        asteroids = Asteroid::map_asteroids(asteroids.clone(), |row| {
+    pub fn update_asteroids_positions(asteroids: &mut AsteroidRows) {
+        *asteroids = Asteroid::map_asteroids(asteroids.clone(), |row| {
             row.iter().cloned().map(|mut asteroid| {
                 asteroid.update_asteroid_position();
                 return asteroid;
             }).collect()
         });
-        return asteroids;
     }
 
-    pub fn unload_unused_asteroids(mut asteroids: AsteroidRows) -> AsteroidRows {
-        asteroids = Asteroid::map_asteroids(asteroids.clone(), |row| {
+    pub fn unload_unused_asteroids(asteroids: &mut AsteroidRows) {
+        *asteroids = Asteroid::map_asteroids(asteroids.clone(), |row| {
             row.iter().cloned().filter(|asteroid| asteroid.is_used()).collect()
         });
-        return asteroids;
     }
 
     pub fn map_asteroids(mut asteroids: AsteroidRows, f: fn (row: AsteroidRow) -> Vec<Asteroid>) -> AsteroidRows {
@@ -145,7 +143,7 @@ impl Asteroid {
         return asteroids;
     }
 
-    pub fn appearing_asteroids(asteroids: AsteroidRows) -> i32 {
+    pub fn appearing_asteroids(asteroids: &AsteroidRows) -> i32 {
         let mut appearing_asteroids = 0;
 
         for row in asteroids.iter() {
@@ -197,7 +195,7 @@ impl Asteroid {
             }
 
             for _ in 0..range {
-                let generated_asteroid = Asteroid::new(&mut rng, Some(vec![vec![]; rows]), Some(row_i));
+                let generated_asteroid = Asteroid::new(&mut rng, Some(&vec![vec![]; rows]), Some(row_i));
                 asteroids[row_i].push(generated_asteroid);
             }
         }
